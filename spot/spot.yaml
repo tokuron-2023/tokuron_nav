@@ -1,0 +1,49 @@
+spot:
+  - num: 0
+    name: home
+    point:
+      x: 0.0
+      y: -0.7
+      z: -1.57
+  - num: 1
+    name: A
+    point:
+      x: -0.65
+      y: -0.65
+      z: -2.355
+  - num: 2
+    name: B
+    point:
+      x: -0.6
+      y: 0.2
+      z: 3.14
+  - num: 3
+    name: C
+    point:
+      x: -0.6
+      y: 0.725
+      z: 2.355
+  - num: 4
+    name: D
+    point:
+      x: 0.09
+      y: 0.7
+      z: 1.57
+  - num: 5
+    name: E
+    point:
+      x: 0.75
+      y: 0.7
+      z: 0.785
+  - num: 6
+    name: F
+    point:
+      x: 0.65
+      y: -0.275
+      z: 0.0
+  - num: 7
+    name: G
+    point:
+      x: 0.65
+      y: -0.65
+      z: -0.785
