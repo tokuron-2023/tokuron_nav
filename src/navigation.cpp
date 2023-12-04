@@ -51,7 +51,7 @@ class Navigation{
 Navigation::Navigation(){
     ROS_INFO("start navigation node");
     read_yaml();
-    srv = nh.advertiseService("/mode", &Navigation::mode_callback, this);
+    srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
 }
@@ -123,8 +123,8 @@ void Navigation::empty_goal_callback(){
 }
 
 void Navigation::read_yaml(){
-    std::string pkg_path = ros::package::getPath("tokuron");
-    std::string yaml_path = "/spot/spot.yaml";
+    std::string pkg_path = ros::package::getPath("tokuron_nav");
+    std::string yaml_path = "/spot/real_spot.yaml";
     pkg_path += yaml_path;
     YAML::Node config = YAML::LoadFile(pkg_path);
     ROS_INFO("%s", pkg_path.c_str());

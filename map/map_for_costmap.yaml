@@ -1,4 +1,4 @@
-image: /home/kazuki/tokuron_ws/src/tokuron/map/map_for_costmap.pgm
+image: map_for_costmap.pgm
 resolution: 0.010000
 origin: [-10.000000, -10.000000, 0.000000]
 negate: 0
