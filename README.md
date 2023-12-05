@@ -1,16 +1,16 @@
 # tokuron  
 ## setup  
 ```
-git clone https://github.com/kazukishirasu/tokuron.git  
+https://github.com/tokuron-2023/tokuron_nav.git  
 catkin build  
 source ~/.bashrc  
-cd tokuron/models  
+cd tokuron_nav/models  
 mkdir -p ~/.gazebo/models/tokuron  
 cp -r meshes/ model.* ~/.gazebo/models/tokuron/  
 ```
 ## launch  
 ```
-roslaunch tokuron tokuron.launch  
+roslaunch tokuron_nav tokuron.launch  
 ```
 ##  subscribe topic  
 ```
@@ -31,5 +31,5 @@ data:
 ```
 ## call service
 ```
-rosservice call /mode "data: true"  
+rosservice call /start_nav "data: true"  
 ```
