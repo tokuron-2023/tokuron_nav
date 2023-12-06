@@ -12,6 +12,7 @@
   <arg name="map_file" default="$(find tokuron_nav)/map/map.yaml"/>
   <arg name="open_rviz" default="true"/>
   <arg name="move_forward_only" default="false"/>
+  <arg name="spot_yaml" default="$(find tokuron_nav)/spot/spot.yaml"/>
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="world_name" value="$(arg world_name)"/>
@@ -54,7 +55,9 @@
     <arg name="move_forward_only" value="$(arg move_forward_only)"/>
   </include>
 
-  <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen"/>
+  <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen">
+    <param name="spot_yaml" value="$(arg spot_yaml)"/>
+  </node>
   
   <!-- rviz -->
   <group if="$(arg open_rviz)">
