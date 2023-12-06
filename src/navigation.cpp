@@ -11,6 +11,7 @@
 #include <actionlib_msgs/GoalID.h>
 #include <tf/transform_broadcaster.h>
 #include <std_srvs/SetBool.h>
+#include <std_srvs/Empty.h>
 
 class Navigation{
     private:
@@ -20,7 +21,8 @@ class Navigation{
                         empty_goal_pub;
         ros::Subscriber pose_sub,
                         list_sub;
-        ros::ServiceServer srv;
+        ros::ServiceServer start_srv;
+        ros::ServiceClient clear_costmap_srv;
         struct Point {
             double x;
             double y;
@@ -35,6 +37,7 @@ class Navigation{
         std::vector<int> vec_array_msg;
         double px, py, pz;
         bool mode = false;
+        std::string yaml_path;
 
     public:
         Navigation();
@@ -43,15 +46,19 @@ class Navigation{
         void pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg);
         void list_callback(const std_msgs::UInt8MultiArray& msg);
         void empty_goal_callback();
+        void clear_costmap();
         void read_yaml();
         void send_goal(double*, double*, double*);
         double check_distance(double*, double*, double*, double*);
 };
 
 Navigation::Navigation(){
+    ros::NodeHandle pnh("~");
+    // pnh.getParam("spot_file", ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
+    pnh.getParam("spot_yaml", yaml_path);
     ROS_INFO("start navigation node");
     read_yaml();
-    srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
+    start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
 }
@@ -71,6 +78,7 @@ void Navigation::loop(){
             spot_num++;
             mode = false;
             empty_goal_callback();
+            clear_costmap();
             if (spot_num == vec_array_msg.size()){
                 spot_num = 0;
             }
@@ -122,12 +130,17 @@ void Navigation::empty_goal_callback(){
     ROS_INFO("publish empty goal");
 }
 
+void Navigation::clear_costmap(){
+    clear_costmap_srv = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
+    std_srvs::Empty srv;
+    clear_costmap_srv.call(srv);
+    ROS_INFO("service call -> /move_base/clear_costmaps");
+}
+
 void Navigation::read_yaml(){
-    std::string pkg_path = ros::package::getPath("tokuron_nav");
-    std::string yaml_path = "/spot/real_spot.yaml";
-    pkg_path += yaml_path;
-    YAML::Node config = YAML::LoadFile(pkg_path);
-    ROS_INFO("%s", pkg_path.c_str());
+    // std::string yaml_path = ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml";
+    YAML::Node config = YAML::LoadFile(yaml_path);
+    ROS_INFO("%s", yaml_path.c_str());
     try {
         const YAML::Node& spots = config["spot"];
         for (const auto& spotNode : spots){
