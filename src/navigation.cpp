@@ -59,7 +59,6 @@ class Navigation{
 
 Navigation::Navigation(){
     ros::NodeHandle pnh("~");
-    // pnh.getParam("spot_file", ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
     pnh.getParam("spot_yaml", yaml_path);
     ROS_INFO("start navigation node");
     read_yaml();
