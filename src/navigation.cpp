@@ -3,7 +3,6 @@
 #include <ros/package.h>
 #include <yaml-cpp/yaml.h>
 #include <vector>
-#include <unistd.h>
 #include <std_msgs/String.h>
 #include <std_msgs/UInt8MultiArray.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -227,7 +226,9 @@ void Navigation::rotate(){
     vel.linear.x = 0.0;
     vel.angular.z = 0.6;
     vel_pub.publish(vel);
-    if (target_yaw < yaw + 0.4 && target_yaw > yaw - 0.4){
+    if (target_yaw < yaw + 0.6 && target_yaw > yaw - 0.6){
+        vel.angular.z = 0.0;
+        vel_pub.publish(vel);
         get_target_yaw = true;
         rotate_flag = false;
     }
