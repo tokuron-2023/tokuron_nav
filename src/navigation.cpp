@@ -35,6 +35,7 @@ class Navigation{
         };
         std::vector<Spot> vec_spot;
         std::vector<int> vec_array_msg;
+        int spot_num = 0;
         double position_x, position_y, target_yaw;
         geometry_msgs::Quaternion orientation;
         bool mode = false,
@@ -69,7 +70,6 @@ Navigation::Navigation(){
 
 void Navigation::loop(){
     if (mode){
-        static int spot_num = 0;
         double  *gx = &vec_spot[vec_array_msg[spot_num]].point.x,
                 *gy = &vec_spot[vec_array_msg[spot_num]].point.y,
                 *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
@@ -129,6 +129,7 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
         ROS_INFO("[%i]:%d", i, msg.data[i]);
     }
     vec_array_msg.push_back(0);
+    spot_num = 0;
 }
 
 void Navigation::read_yaml(){
@@ -238,7 +239,7 @@ void Navigation::rotate(){
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation");
     Navigation navigation;
-    ros::Rate rate(10);
+    ros::Rate rate(5);
     while (ros::ok()){
         navigation.loop();
         ros::spinOnce();
