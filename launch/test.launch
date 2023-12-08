@@ -1,0 +1,8 @@
+<launch>
+  <!-- Arguments -->
+  <arg name="spot_yaml" default="$(find tokuron_nav)/spot/spot.yaml"/>
+
+  <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen">
+    <param name="spot_yaml" value="$(arg spot_yaml)"/>
+  </node>
+</launch>

@@ -12,6 +12,7 @@
 #include <tf/transform_broadcaster.h>
 #include <std_srvs/SetBool.h>
 #include <std_srvs/Empty.h>
+#include <geometry_msgs/Twist.h>
 
 class Navigation{
     private:
@@ -35,8 +36,11 @@ class Navigation{
         };
         std::vector<Spot> vec_spot;
         std::vector<int> vec_array_msg;
-        double px, py, pz;
-        bool mode = false;
+        double position_x, position_y, target_yaw;
+        geometry_msgs::Quaternion orientation;
+        bool mode = false,
+             first_action = true,
+             rotate_flag = true;
         std::string yaml_path;
 
     public:
@@ -45,11 +49,12 @@ class Navigation{
         bool mode_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res);
         void pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg);
         void list_callback(const std_msgs::UInt8MultiArray& msg);
-        void empty_goal_callback();
-        void clear_costmap();
         void read_yaml();
         void send_goal(double*, double*, double*);
         double check_distance(double*, double*, double*, double*);
+        void send_empty_goal();
+        void clear_costmap();
+        void rotate();
 };
 
 Navigation::Navigation(){
@@ -69,18 +74,24 @@ void Navigation::loop(){
         double  *gx = &vec_spot[vec_array_msg[spot_num]].point.x,
                 *gy = &vec_spot[vec_array_msg[spot_num]].point.y,
                 *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
-                *ppx = &px,
-                *ppy = &py, 
+                *ppx = &position_x,
+                *ppy = &position_y, 
                 dist;
-        send_goal(gx, gy, gz);
-        dist = check_distance(gx, gy, ppx, ppy);
-        if (dist < 0.05){
-            spot_num++;
-            mode = false;
-            empty_goal_callback();
-            clear_costmap();
-            if (spot_num == vec_array_msg.size()){
-                spot_num = 0;
+        if (!first_action && rotate_flag){
+            rotate();
+        }else{
+            send_goal(gx, gy, gz);
+            dist = check_distance(gx, gy, ppx, ppy);
+            if (dist < 0.05){
+                spot_num++;
+                mode = false;
+                first_action = false;
+                rotate_flag = true;
+                send_empty_goal();
+                clear_costmap();
+                if (spot_num == vec_array_msg.size()){
+                    spot_num = 0;
+                }
             }
         }
     }else{
@@ -105,9 +116,9 @@ bool Navigation::mode_callback(std_srvs::SetBool::Request &req, std_srvs::SetBoo
 }
 
 void Navigation::pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg){
-    px = msg.pose.pose.position.x;
-    py = msg.pose.pose.position.y;
-    pz = msg.pose.pose.position.z;
+    position_x = msg.pose.pose.position.x;
+    position_y = msg.pose.pose.position.y;
+    orientation = msg.pose.pose.orientation;
 }
 
 void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
@@ -119,22 +130,6 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
         ROS_INFO("[%i]:%d", i, msg.data[i]);
     }
     vec_array_msg.push_back(0);
-}
-
-void Navigation::empty_goal_callback(){
-    sleep(1);
-    empty_goal_pub = nh.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 1);
-    actionlib_msgs::GoalID empty;
-    empty.id = "";
-    empty_goal_pub.publish(empty);
-    ROS_INFO("publish empty goal");
-}
-
-void Navigation::clear_costmap(){
-    clear_costmap_srv = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
-    std_srvs::Empty srv;
-    clear_costmap_srv.call(srv);
-    ROS_INFO("service call -> /move_base/clear_costmaps");
 }
 
 void Navigation::read_yaml(){
@@ -174,15 +169,15 @@ void Navigation::send_goal(double *x, double *y, double *e){
     ros::Time time = ros::Time::now();
     geometry_msgs::PoseStamped goal_point;
 
-    tf::Quaternion orientation=tf::createQuaternionFromRPY(0, 0, *e);
+    tf::Quaternion goal_orientation=tf::createQuaternionFromRPY(0, 0, *e);
  
     goal_point.pose.position.x = *x;
     goal_point.pose.position.y = *y;
     goal_point.pose.position.z =  0;
-    goal_point.pose.orientation.x = orientation[0];
-    goal_point.pose.orientation.y = orientation[1];
-    goal_point.pose.orientation.z = orientation[2];
-    goal_point.pose.orientation.w = orientation[3];
+    goal_point.pose.orientation.x = goal_orientation[0];
+    goal_point.pose.orientation.y = goal_orientation[1];
+    goal_point.pose.orientation.z = goal_orientation[2];
+    goal_point.pose.orientation.w = goal_orientation[3];
     goal_point.header.stamp = time;
     goal_point.header.frame_id = "map";
  
@@ -190,11 +185,53 @@ void Navigation::send_goal(double *x, double *y, double *e){
     ROS_INFO("send goal");
 }
 
-double Navigation::check_distance(double *gx, double *gy, double *px, double *py){
+double Navigation::check_distance(double *gx, double *gy, double *position_x, double *position_y){
     double distance;
-    distance = sqrt(std::pow(*px - *gx, 2) + std::pow(*py - *gy, 2));
+    distance = sqrt(std::pow(*position_x - *gx, 2) + std::pow(*position_y - *gy, 2));
     ROS_INFO("distance:%f", distance);
     return distance;
+}
+
+void Navigation::send_empty_goal(){
+    sleep(1);
+    empty_goal_pub = nh.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 1);
+    actionlib_msgs::GoalID empty;
+    empty.id = "";
+    empty_goal_pub.publish(empty);
+    ROS_INFO("publish empty goal");
+}
+
+void Navigation::clear_costmap(){
+    clear_costmap_srv = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
+    std_srvs::Empty srv;
+    clear_costmap_srv.call(srv);
+    ROS_INFO("service call -> /move_base/clear_costmaps");
+}
+
+void Navigation::rotate(){
+    static bool get_target_yaw = true;
+    double roll, pitch, yaw;
+    tf::Quaternion quaternion;
+    quaternionMsgToTF(orientation, quaternion);
+    tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
+    geometry_msgs::Twist vel;
+    vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
+    if (get_target_yaw){
+        if (yaw > 0){
+            target_yaw = -(3.14 - abs(yaw));
+        }else{
+            target_yaw = 3.14 - abs(yaw);
+        }
+        get_target_yaw = false;
+    }
+    vel.linear.x = 0.0;
+    vel.angular.z = 0.6;
+    vel_pub.publish(vel);
+    if (target_yaw < yaw + 0.4 && target_yaw > yaw - 0.4){
+        get_target_yaw = true;
+        rotate_flag = false;
+    }
+    ROS_INFO("rotating 180 degrees");
 }
 
 int main(int argc, char **argv) {
