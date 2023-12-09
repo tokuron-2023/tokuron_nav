@@ -60,7 +60,7 @@ class Navigation{
 Navigation::Navigation(){
     ros::NodeHandle pnh("~");
     pnh.getParam("spot_yaml", yaml_path);
-    ROS_INFO("start navigation node");
+    ROS_INFO("Start navigation node");
     read_yaml();
     start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
@@ -95,26 +95,26 @@ void Navigation::loop(){
                 }
             }
         }else{
-            ROS_INFO("please publish std_msgs/UInt8MultiArray message");
+            ROS_INFO("Please publish std_msgs/UInt8MultiArray message");
             mode = false;
         }
     }else{
-        ROS_INFO("waiting for service");
+        ROS_INFO("Waiting for service");
     }
 }
 
 bool Navigation::mode_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res){
-    ROS_INFO("recived request");
+    ROS_INFO("Recived request");
     if (req.data == true){
-        res.message = "start navigation mode";
+        res.message = "Start navigation mode";
         res.success = true;
         mode = true;
-        ROS_INFO("start navigation");
+        ROS_INFO("Start navigation");
     }else{
-        res.message = "start camera mode";
+        res.message = "Start camera mode";
         res.success = true;
         mode = false;
-        ROS_INFO("start camera mode");
+        ROS_INFO("Start camera mode");
     }
     return res.success;
 }
@@ -126,15 +126,19 @@ void Navigation::pose_callback(const geometry_msgs::PoseWithCovarianceStamped& m
 }
 
 void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
-    vec_array_msg.clear();
     int sum = msg.data.size();
     ROS_INFO("I subscribed [%i]", sum);
-    for (int i = 0; i < sum; i++){
-        vec_array_msg.push_back(msg.data[i]);
-        ROS_INFO("[%i]:%d", i, msg.data[i]);
+    if (sum > vec_spot.size() - 1){
+        ROS_INFO("A maximum of %d spots can be registered", vec_spot.size() - 1);
+    }else{
+        vec_array_msg.clear();
+        for (int i = 0; i < sum; i++){
+            vec_array_msg.push_back(msg.data[i]);
+            ROS_INFO("[%i]:%d", i, msg.data[i]);
+        }
+        vec_array_msg.push_back(0);
+        spot_num = 0;
     }
-    vec_array_msg.push_back(0);
-    spot_num = 0;
 }
 
 void Navigation::read_yaml(){
@@ -159,7 +163,7 @@ void Navigation::read_yaml(){
             std::cout << "Spot: " << spot.name << std::endl;
             std::cout << "  - Point: (" << spot.point.x << ", " << spot.point.y << ", " << spot.point.z << ")\n";
         }
-        ROS_INFO("read yaml");
+        ROS_INFO("Read yaml");
     } catch (const std::exception& e) {
         std::cerr << "Error reading YAML file: " << e.what() << std::endl;
     }
@@ -187,13 +191,13 @@ void Navigation::send_goal(double *x, double *y, double *e){
     goal_point.header.frame_id = "map";
  
     goal_pub.publish(goal_point);
-    ROS_INFO("send goal");
+    ROS_INFO("Send goal");
 }
 
 double Navigation::check_distance(double *gx, double *gy, double *position_x, double *position_y){
     double distance;
     distance = sqrt(std::pow(*position_x - *gx, 2) + std::pow(*position_y - *gy, 2));
-    ROS_INFO("distance:%f", distance);
+    ROS_INFO("Distance:%f", distance);
     return distance;
 }
 
@@ -203,14 +207,14 @@ void Navigation::send_empty_goal(){
     actionlib_msgs::GoalID empty;
     empty.id = "";
     empty_goal_pub.publish(empty);
-    ROS_INFO("publish empty goal");
+    ROS_INFO("Publish empty goal");
 }
 
 void Navigation::clear_costmap(){
     clear_costmap_srv = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
     std_srvs::Empty srv;
     clear_costmap_srv.call(srv);
-    ROS_INFO("service call -> /move_base/clear_costmaps");
+    ROS_INFO("Service call -> /move_base/clear_costmaps");
 }
 
 void Navigation::rotate(){
@@ -238,7 +242,7 @@ void Navigation::rotate(){
         get_target_yaw = true;
         rotate_flag = false;
     }
-    ROS_INFO("rotating 180 degrees");
+    ROS_INFO("Rotating 180 degrees");
 }
 
 int main(int argc, char **argv) {
