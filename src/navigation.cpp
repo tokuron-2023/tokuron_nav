@@ -90,6 +90,7 @@ void Navigation::loop(){
                     clear_costmap();
                     if (spot_num == vec_array_msg.size()){
                         spot_num = 0;
+                        vec_array_msg.clear();
                     }
                 }
             }
