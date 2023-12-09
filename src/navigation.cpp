@@ -133,8 +133,12 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
     }else{
         vec_array_msg.clear();
         for (int i = 0; i < sum; i++){
-            vec_array_msg.push_back(msg.data[i]);
-            ROS_INFO("[%i]:%d", i, msg.data[i]);
+            if (msg.data[i] > vec_spot.size() - 1){
+                ROS_ERROR("%d is unregistered number", msg.data[i]);
+            }else{
+                vec_array_msg.push_back(msg.data[i]);
+                ROS_INFO("[%i]:%d", i, msg.data[i]);
+            }
         }
         vec_array_msg.push_back(0);
         spot_num = 0;
