@@ -13,6 +13,7 @@ cp -r meshes/ model.* ~/.gazebo/models/tokuron/
 roslaunch tokuron_nav tokuron.launch  
 ```
 ##  subscribe topic  
+Number(1,2,3,...) is spot number
 ```
 rostopic pub /list std_msgs/UInt8MultiArray "layout:  
   dim:  
@@ -27,6 +28,16 @@ data:
 - 4  
 - 5  
 - 6 "  
+```
+Return home by subscribing to an empty array  
+```
+rostopic pub /list std_msgs/UInt8MultiArray "layout:  
+  dim:  
+  - label: ''  
+    size: 0  
+    stride: 0  
+  data_offset: 0  
+data: []"  
 ```
 ## call service
 ```
