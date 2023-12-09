@@ -12,6 +12,10 @@ cp -r meshes/ model.* ~/.gazebo/models/tokuron/
 ```
 roslaunch tokuron_nav tokuron.launch  
 ```
+simulation
+```
+roslaunch tokuron_nav tokuron_sim.launch
+```
 ##  subscribe topic  
 Number(1,2,3,...) is spot number
 ```
