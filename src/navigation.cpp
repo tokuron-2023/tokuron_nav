@@ -95,7 +95,7 @@ void Navigation::loop(){
                 }
             }
         }else{
-            ROS_INFO("Please publish std_msgs/UInt8MultiArray message");
+            ROS_ERROR("Please publish std_msgs/UInt8MultiArray message");
             mode = false;
         }
     }else{
@@ -129,7 +129,7 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
     int sum = msg.data.size();
     ROS_INFO("I subscribed [%i]", sum);
     if (sum > vec_spot.size() - 1){
-        ROS_INFO("A maximum of %d spots can be registered", vec_spot.size() - 1);
+        ROS_ERROR("A maximum of %ld spots can be registered", vec_spot.size() - 1);
     }else{
         vec_array_msg.clear();
         for (int i = 0; i < sum; i++){
