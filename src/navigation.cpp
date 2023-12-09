@@ -69,28 +69,33 @@ Navigation::Navigation(){
 
 void Navigation::loop(){
     if (mode){
-        double  *gx = &vec_spot[vec_array_msg[spot_num]].point.x,
-                *gy = &vec_spot[vec_array_msg[spot_num]].point.y,
-                *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
-                *ppx = &position_x,
-                *ppy = &position_y, 
-                dist;
-        if (!first_action && rotate_flag){
-            rotate();
-        }else{
-            send_goal(gx, gy, gz);
-            dist = check_distance(gx, gy, ppx, ppy);
-            if (dist < 0.05){
-                spot_num++;
-                mode = false;
-                first_action = false;
-                rotate_flag = true;
-                send_empty_goal();
-                clear_costmap();
-                if (spot_num == vec_array_msg.size()){
-                    spot_num = 0;
+        if (!vec_array_msg.empty()){
+            double  *gx = &vec_spot[vec_array_msg[spot_num]].point.x,
+                    *gy = &vec_spot[vec_array_msg[spot_num]].point.y,
+                    *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
+                    *ppx = &position_x,
+                    *ppy = &position_y, 
+                    dist;
+            if (!first_action && rotate_flag){
+                rotate();
+            }else{
+                send_goal(gx, gy, gz);
+                dist = check_distance(gx, gy, ppx, ppy);
+                if (dist < 0.05){
+                    spot_num++;
+                    mode = false;
+                    first_action = false;
+                    rotate_flag = true;
+                    send_empty_goal();
+                    clear_costmap();
+                    if (spot_num == vec_array_msg.size()){
+                        spot_num = 0;
+                    }
                 }
             }
+        }else{
+            ROS_INFO("please publish std_msgs/UInt8MultiArray message");
+            mode = false;
         }
     }else{
         ROS_INFO("waiting for service");
