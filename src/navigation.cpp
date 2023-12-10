@@ -12,6 +12,7 @@
 #include <std_srvs/SetBool.h>
 #include <std_srvs/Empty.h>
 #include <geometry_msgs/Twist.h>
+#include <sensor_msgs/LaserScan.h>
 
 class Navigation{
     private:
@@ -20,7 +21,8 @@ class Navigation{
                         vel_pub,
                         empty_goal_pub;
         ros::Subscriber pose_sub,
-                        list_sub;
+                        list_sub,
+                        scan_sub;
         ros::ServiceServer start_srv;
         ros::ServiceClient clear_costmap_srv;
         struct Point {
@@ -35,12 +37,15 @@ class Navigation{
         };
         std::vector<Spot> vec_spot;
         std::vector<int> vec_array_msg;
-        int spot_num = 0;
+        std::vector<float> scan_array;
+        int spot_num = 0,
+            scan_array_size;
         double position_x, 
                position_y, 
                dist_err, 
                target_yaw, 
                yaw_tolerance,
+               front_distance_threshold,
                goal_pub_rate;
         geometry_msgs::Quaternion orientation;
         bool mode = false,
@@ -54,9 +59,11 @@ class Navigation{
         bool mode_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res);
         void pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg);
         void list_callback(const std_msgs::UInt8MultiArray& msg);
+        void scan_callback(const sensor_msgs::LaserScan& msg);
         void read_yaml();
         void send_goal(double*, double*, double*);
         double check_distance(double*, double*, double*, double*);
+        float calc_front_distance();
         void send_empty_goal();
         void clear_costmap();
         void rotate();
@@ -68,12 +75,14 @@ Navigation::Navigation(){
     pnh.param<std::string>("yaml_path", yaml_path, ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
     pnh.param<double>("dist_err", dist_err, 0.05);
     pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.6);
+    pnh.param<double>("front_distance_threshold", front_distance_threshold, 0.14);
     pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
     start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
+    scan_sub = nh.subscribe("/scan", 10, &Navigation::scan_callback, this);
 }
 
 void Navigation::loop(){
@@ -84,13 +93,18 @@ void Navigation::loop(){
                     *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
                     *ppx = &position_x,
                     *ppy = &position_y,
-                    dist;
+                    gdist;
+            float fdist;
+            fdist = calc_front_distance();
+            if (fdist < front_distance_threshold){
+                rotate_flag = true;
+            }
             if (!first_action && rotate_flag){
                 rotate();
             }else{
                 send_goal(gx, gy, gz);
-                dist = check_distance(gx, gy, ppx, ppy);
-                if (dist < dist_err){
+                gdist = check_distance(gx, gy, ppx, ppy);
+                if (gdist < dist_err){
                     spot_num++;
                     mode = false;
                     first_action = false;
@@ -154,6 +168,11 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
     }
 }
 
+void Navigation::scan_callback(const sensor_msgs::LaserScan& msg){
+    scan_array =  msg.ranges;
+    scan_array_size = scan_array.size();
+}
+
 void Navigation::read_yaml(){
     YAML::Node config = YAML::LoadFile(yaml_path);
     ROS_INFO("%s", yaml_path.c_str());
@@ -209,8 +228,33 @@ void Navigation::send_goal(double *x, double *y, double *e){
 double Navigation::check_distance(double *gx, double *gy, double *position_x, double *position_y){
     double distance;
     distance = sqrt(std::pow(*position_x - *gx, 2) + std::pow(*position_y - *gy, 2));
-    ROS_INFO("Distance:%f", distance);
+    ROS_INFO("Goal distance:%f", distance);
     return distance;
+}
+
+float Navigation::calc_front_distance(){
+    int count;
+    float sum = 0;
+    for (int i = scan_array_size - 5; i <= scan_array_size - 1; i++){
+        sum += scan_array[i];
+        count++;
+    }
+    for (int i = 0; i <= 5; i++){
+        sum += scan_array[i];
+        count++;
+    }
+    ROS_INFO("Front distance:%f", sum / count);
+    return sum / count;
+
+    // int front = scan_array.size() / 2;
+    // int count;
+    // float sum = 0;
+    // for (int i = front - 5; i <= front + 5; i++){
+    //     sum += scan_array[i];
+    //     count++;
+    // }
+    // ROS_INFO("Front distance:%f", sum / count);
+    // return sum / count;
 }
 
 void Navigation::send_empty_goal(){
@@ -254,7 +298,7 @@ void Navigation::rotate(){
         get_target_yaw = true;
         rotate_flag = false;
     }
-    ROS_INFO("Rotating 180 degrees");
+    ROS_INFO("Rotating");
 }
 
 int main(int argc, char **argv) {
