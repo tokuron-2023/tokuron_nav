@@ -36,7 +36,12 @@ class Navigation{
         std::vector<Spot> vec_spot;
         std::vector<int> vec_array_msg;
         int spot_num = 0;
-        double position_x, position_y, target_yaw;
+        double position_x, 
+               position_y, 
+               dist_err, 
+               target_yaw, 
+               yaw_tolerance,
+               goal_pub_rate;
         geometry_msgs::Quaternion orientation;
         bool mode = false,
              first_action = true,
@@ -55,11 +60,15 @@ class Navigation{
         void send_empty_goal();
         void clear_costmap();
         void rotate();
+        double get_goal_pub_rate(){return goal_pub_rate;};
 };
 
 Navigation::Navigation(){
     ros::NodeHandle pnh("~");
-    pnh.getParam("spot_yaml", yaml_path);
+    pnh.param<std::string>("yaml_path", yaml_path, ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
+    pnh.param<double>("dist_err", dist_err, 0.05);
+    pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.6);
+    pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
     start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
@@ -74,14 +83,14 @@ void Navigation::loop(){
                     *gy = &vec_spot[vec_array_msg[spot_num]].point.y,
                     *gz = &vec_spot[vec_array_msg[spot_num]].point.z,
                     *ppx = &position_x,
-                    *ppy = &position_y, 
+                    *ppy = &position_y,
                     dist;
             if (!first_action && rotate_flag){
                 rotate();
             }else{
                 send_goal(gx, gy, gz);
                 dist = check_distance(gx, gy, ppx, ppy);
-                if (dist < 0.05){
+                if (dist < dist_err){
                     spot_num++;
                     mode = false;
                     first_action = false;
@@ -146,7 +155,6 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
 }
 
 void Navigation::read_yaml(){
-    // std::string yaml_path = ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml";
     YAML::Node config = YAML::LoadFile(yaml_path);
     ROS_INFO("%s", yaml_path.c_str());
     try {
@@ -240,7 +248,7 @@ void Navigation::rotate(){
     vel.linear.x = 0.0;
     vel.angular.z = 0.6;
     vel_pub.publish(vel);
-    if (target_yaw < yaw + 0.6 && target_yaw > yaw - 0.6){
+    if (target_yaw < yaw + yaw_tolerance && target_yaw > yaw - yaw_tolerance){
         vel.angular.z = 0.0;
         vel_pub.publish(vel);
         get_target_yaw = true;
@@ -252,7 +260,7 @@ void Navigation::rotate(){
 int main(int argc, char **argv) {
     ros::init(argc, argv, "navigation");
     Navigation navigation;
-    ros::Rate rate(5);
+    ros::Rate rate(navigation.get_goal_pub_rate());
     while (ros::ok()){
         navigation.loop();
         ros::spinOnce();
