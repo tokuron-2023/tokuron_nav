@@ -59,13 +59,13 @@
     <arg name="move_forward_only" value="$(arg move_forward_only)"/>
   </include>
 
-  <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen">
-    <param name="yaml_path" type="string" value="$(arg yaml_path)"/>
-    <param name="dist_err" type="double" value="$(arg dist_err)"/>
-    <param name="yaw_tolerance" type="double" value="$(arg yaw_tolerance)"/>
-    <param name="goal_pub_rate" type="double" value="$(arg goal_pub_rate)"/>
-  </node>
-  
+  <include file="$(find tokuron_nav)/launch/navigation.launch">
+    <arg name="yaml_path" value="$(arg yaml_path)"/>
+    <arg name="dist_err" value="$(arg dist_err)"/>
+    <arg name="yaw_tolerance" value="$(arg yaw_tolerance)"/>
+    <arg name="goal_pub_rate" value="$(arg goal_pub_rate)"/>
+  </include>
+
   <!-- rviz -->
   <group if="$(arg open_rviz)">
     <node pkg="rviz" type="rviz" name="rviz" required="true"
