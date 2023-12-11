@@ -2,9 +2,9 @@
   <!-- Arguments -->
   <arg name="yaml_path" default="$(find tokuron_nav)/spot/spot.yaml"/>
   <arg name="dist_err" default="0.05"/>
-  <arg name="yaw_tolerance" default="0.6"/>
+  <arg name="yaw_tolerance" default="0.4"/>
   <arg name="front_distance_threshold" default="0.16"/>
-  <arg name="pose_tolerance" default="0.06"/>
+  <arg name="pose_tolerance" default="0.005"/>
   <arg name="goal_pub_rate" default="10"/>
 
   <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen">

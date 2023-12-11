@@ -89,7 +89,7 @@ Navigation::Navigation(){
     pnh.param<double>("dist_err", dist_err, 0.05);
     pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.6);
     pnh.param<double>("front_distance_threshold", front_distance_threshold, 0.16);
-    pnh.param<double>("pose_tolerance", pose_tolerance, 0.06);
+    pnh.param<double>("pose_tolerance", pose_tolerance, 0.005);
     pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
@@ -97,8 +97,8 @@ Navigation::Navigation(){
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
     scan_sub = nh.subscribe("/scan", 1, &Navigation::scan_callback, this);
-    pose_timer = nh.createTimer(ros::Duration(2.5), &Navigation::old_pose, this);
-    check_moving_timer = nh.createTimer(ros::Duration(5), &Navigation::check_moving, this);
+    pose_timer = nh.createTimer(ros::Duration(2), &Navigation::old_pose, this);
+    check_moving_timer = nh.createTimer(ros::Duration(4), &Navigation::check_moving, this);
 }
 
 void Navigation::loop(){
@@ -120,6 +120,7 @@ void Navigation::loop(){
                     spot_num++;
                     start_nav = false;
                     reach_goal = true;
+                    get_target_yaw = true;
                     send_empty_goal();
                     clear_costmap();
                     if (spot_num == gpt_array.size()){
@@ -296,11 +297,12 @@ void Navigation::old_pose(const ros::TimerEvent& e){
 }
 
 void Navigation::check_moving(const ros::TimerEvent& e){
+    // ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
     if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
         moving = false;
     }else{
         moving = true;
-        get_target_yaw = true;
+        // get_target_yaw = true;
     }
 }
 
@@ -335,11 +337,12 @@ void Navigation::rotate(double rad){
         }
         get_target_yaw = false;
     }
-    if (target_yaw > 0){
-        vel.angular.z = 0.6;
-    }else{
-        vel.angular.z = -0.6;
-    }
+    // if (target_yaw > 0){
+    //     vel.angular.z = 0.6;
+    // }else{
+    //     vel.angular.z = -0.6;
+    // }
+    vel.angular.z = 0.6;
     vel.linear.x = 0.0;
     vel_pub.publish(vel);
     ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
