@@ -12,6 +12,7 @@
   <arg name="dist_err" default="0.05"/>
   <arg name="yaw_tolerance" default="0.6"/>
   <arg name="front_distance_threshold" default="0.16"/>
+  <arg name="pose_tolerance" default="0.06"/>
   <arg name="goal_pub_rate" default="10"/>
 
   <!-- Turtlebot3 -->
@@ -47,6 +48,7 @@
     <arg name="dist_err" value="$(arg dist_err)"/>
     <arg name="yaw_tolerance" value="$(arg yaw_tolerance)"/>
     <arg name="front_distance_threshold" value="$(arg front_distance_threshold)"/>
+    <arg name="pose_tolerance" value="$(arg pose_tolerance)"/>
     <arg name="goal_pub_rate" value="$(arg goal_pub_rate)"/>
   </include>
   

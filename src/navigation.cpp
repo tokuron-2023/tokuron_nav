@@ -50,6 +50,7 @@ class Navigation{
                target_yaw, 
                yaw_tolerance,
                front_distance_threshold,
+               pose_tolerance,
                average_x,
                average_y,
                old_pose_x,
@@ -88,6 +89,7 @@ Navigation::Navigation(){
     pnh.param<double>("dist_err", dist_err, 0.05);
     pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.6);
     pnh.param<double>("front_distance_threshold", front_distance_threshold, 0.16);
+    pnh.param<double>("pose_tolerance", pose_tolerance, 0.06);
     pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
@@ -294,7 +296,6 @@ void Navigation::old_pose(const ros::TimerEvent& e){
 }
 
 void Navigation::check_moving(const ros::TimerEvent& e){
-    double pose_tolerance = 0.06;
     if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
         moving = false;
     }else{
