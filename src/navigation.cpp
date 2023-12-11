@@ -58,7 +58,8 @@ class Navigation{
         geometry_msgs::Quaternion orientation;
         bool start_nav = false,
              reach_goal = false,
-             moving = false;
+             moving = false,
+             get_target_yaw = true;
         std::string yaml_path;
 
     public:
@@ -94,13 +95,14 @@ Navigation::Navigation(){
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
     scan_sub = nh.subscribe("/scan", 1, &Navigation::scan_callback, this);
-    pose_timer = nh.createTimer(ros::Duration(2), &Navigation::old_pose, this);
-    check_moving_timer = nh.createTimer(ros::Duration(4), &Navigation::check_moving, this);
+    pose_timer = nh.createTimer(ros::Duration(2.5), &Navigation::old_pose, this);
+    check_moving_timer = nh.createTimer(ros::Duration(5), &Navigation::check_moving, this);
 }
 
 void Navigation::loop(){
     if (start_nav){
         if (!gpt_array.empty()){
+            static int count = 0;
             double  *gx = &spot_array[gpt_array[spot_num]].point.x,
                     *gy = &spot_array[gpt_array[spot_num]].point.y,
                     *gz = &spot_array[gpt_array[spot_num]].point.z,
@@ -109,7 +111,7 @@ void Navigation::loop(){
                     gdist;
             if (reach_goal){
                 rotate(3.14);
-            }else if (!reach_goal){
+            }else if (!reach_goal && moving || count == 0){
                 send_goal(gx, gy, gz);
                 gdist = check_distance(gx, gy, ppx, ppy);
                 if (gdist < dist_err){
@@ -124,9 +126,11 @@ void Navigation::loop(){
                     }
                 }
             }
-            if (!moving && !reach_goal){
-                rotate(1.57);
+            if (!reach_goal && !moving && count >= 10){
+                send_empty_goal();
+                rotate(3.14);
             }
+            count++;
         }else{
             ROS_ERROR("Please publish std_msgs/UInt8MultiArray message");
             start_nav = false;
@@ -291,11 +295,11 @@ void Navigation::old_pose(const ros::TimerEvent& e){
 
 void Navigation::check_moving(const ros::TimerEvent& e){
     double pose_tolerance = 0.06;
-    ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
     if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
         moving = false;
     }else{
         moving = true;
+        get_target_yaw = true;
     }
 }
 
@@ -316,7 +320,6 @@ void Navigation::clear_costmap(){
 }
 
 void Navigation::rotate(double rad){
-    static bool get_target_yaw = true;
     double roll, pitch, yaw;
     tf::Quaternion quaternion;
     quaternionMsgToTF(orientation, quaternion);
@@ -331,17 +334,22 @@ void Navigation::rotate(double rad){
         }
         get_target_yaw = false;
     }
+    if (target_yaw > 0){
+        vel.angular.z = 0.6;
+    }else{
+        vel.angular.z = -0.6;
+    }
     vel.linear.x = 0.0;
-    vel.angular.z = 0.6;
     vel_pub.publish(vel);
+    ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
     if (target_yaw < yaw + yaw_tolerance && target_yaw > yaw - yaw_tolerance){
         vel.angular.z = 0.0;
         vel_pub.publish(vel);
         get_target_yaw = true;
         reach_goal = false;
         moving = true;
+        ROS_INFO("Finish rotate");
     }
-    ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
 }
 
 int main(int argc, char **argv) {
