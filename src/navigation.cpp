@@ -25,6 +25,8 @@ class Navigation{
                         scan_sub;
         ros::ServiceServer start_srv;
         ros::ServiceClient clear_costmap_srv;
+        ros::Timer pose_timer,
+                   check_moving_timer;
         struct Point {
             double x;
             double y;
@@ -50,10 +52,13 @@ class Navigation{
                front_distance_threshold,
                average_x,
                average_y,
+               old_pose_x,
+               old_pose_y,
                goal_pub_rate;
         geometry_msgs::Quaternion orientation;
         bool start_nav = false,
-             reach_goal = false;
+             reach_goal = false,
+             moving = false;
         std::string yaml_path;
 
     public:
@@ -67,7 +72,9 @@ class Navigation{
         void send_goal(double*, double*, double*);
         double check_distance(double*, double*, double*, double*);
         double calc_front_distance();
-        void average_pose();
+        void average_pose(const ros::TimerEvent& e);
+        void old_pose(const ros::TimerEvent& e);
+        void check_moving(const ros::TimerEvent& e);
         void send_empty_goal();
         void clear_costmap();
         void rotate(double);
@@ -86,7 +93,9 @@ Navigation::Navigation(){
     start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
-    scan_sub = nh.subscribe("/scan", 10, &Navigation::scan_callback, this);
+    scan_sub = nh.subscribe("/scan", 1, &Navigation::scan_callback, this);
+    pose_timer = nh.createTimer(ros::Duration(2), &Navigation::old_pose, this);
+    check_moving_timer = nh.createTimer(ros::Duration(4), &Navigation::check_moving, this);
 }
 
 void Navigation::loop(){
@@ -97,12 +106,8 @@ void Navigation::loop(){
                     *gz = &spot_array[gpt_array[spot_num]].point.z,
                     *ppx = &position_x,
                     *ppy = &position_y,
-                    gdist,
-                    pose_tolerance = 0.08;
-            average_pose();
-            if (abs(abs(average_x) - abs(position_x)) < pose_tolerance && abs(abs(average_y) - abs(position_y)) < pose_tolerance){
-                rotate(1.57);
-            }else if (reach_goal){
+                    gdist;
+            if (reach_goal){
                 rotate(3.14);
             }else if (!reach_goal){
                 send_goal(gx, gy, gz);
@@ -118,6 +123,9 @@ void Navigation::loop(){
                         gpt_array.clear();
                     }
                 }
+            }
+            if (!moving && !reach_goal){
+                rotate(1.57);
             }
         }else{
             ROS_ERROR("Please publish std_msgs/UInt8MultiArray message");
@@ -259,11 +267,11 @@ double Navigation::calc_front_distance(){
     // return sum / count;
 }
 
-void Navigation::average_pose(){
+void Navigation::average_pose(const ros::TimerEvent& e){
     int i;
     double sum_x = 0, sum_y = 0;
-    pose_array_x.push_back(position_x);
-    pose_array_y.push_back(position_y);
+    pose_array_x.push_back(abs(position_x));
+    pose_array_y.push_back(abs(position_y));
     if (pose_array_x.size() >= 11){
         pose_array_x.erase(pose_array_x.begin());
         pose_array_y.erase(pose_array_y.begin());
@@ -274,6 +282,21 @@ void Navigation::average_pose(){
     }
     average_x = sum_x / i;
     average_y = sum_y / i;
+}
+
+void Navigation::old_pose(const ros::TimerEvent& e){
+    old_pose_x = position_x;
+    old_pose_y = position_y;
+}
+
+void Navigation::check_moving(const ros::TimerEvent& e){
+    double pose_tolerance = 0.06;
+    ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
+    if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
+        moving = false;
+    }else{
+        moving = true;
+    }
 }
 
 void Navigation::send_empty_goal(){
@@ -316,6 +339,7 @@ void Navigation::rotate(double rad){
         vel_pub.publish(vel);
         get_target_yaw = true;
         reach_goal = false;
+        moving = true;
     }
     ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
 }
