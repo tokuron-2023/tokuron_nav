@@ -113,6 +113,9 @@ void Navigation::loop(){
                     gdist;
             if (reach_goal){
                 rotate(3.14);
+            }else if (!reach_goal && !moving && count >= 50){
+                send_empty_goal();
+                rotate(1.57);
             }else if (!reach_goal && moving || count == 0){
                 send_goal(gx, gy, gz);
                 gdist = check_distance(gx, gy, ppx, ppy);
@@ -128,10 +131,6 @@ void Navigation::loop(){
                         gpt_array.clear();
                     }
                 }
-            }
-            if (!reach_goal && !moving && count >= 10){
-                send_empty_goal();
-                rotate(3.14);
             }
             count++;
         }else{
@@ -337,15 +336,19 @@ void Navigation::rotate(double rad){
         }
         get_target_yaw = false;
     }
-    // if (target_yaw > 0){
-    //     vel.angular.z = 0.6;
-    // }else{
-    //     vel.angular.z = -0.6;
-    // }
-    vel.angular.z = 0.6;
+    if (target_yaw > 0){
+        vel.angular.z = -0.6;
+    }else{
+        vel.angular.z = 0.6;
+    }
+    // vel.angular.z = 0.6;
     vel.linear.x = 0.0;
     vel_pub.publish(vel);
-    ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
+    if (rad == 3.14){
+        ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
+    }else{
+        ROS_INFO("Rotating");
+    }
     if (target_yaw < yaw + yaw_tolerance && target_yaw > yaw - yaw_tolerance){
         vel.angular.z = 0.0;
         vel_pub.publish(vel);
