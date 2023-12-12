@@ -113,7 +113,7 @@ void Navigation::loop(){
                     gdist;
             if (reach_goal){
                 rotate(3.14);
-            }else if (!reach_goal && !moving && count >= 50){
+            }else if (!reach_goal && !moving && count >= 20){
                 send_empty_goal();
                 rotate(1.57);
             }else if (!reach_goal && moving || count == 0){
