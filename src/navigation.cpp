@@ -134,13 +134,14 @@ void Navigation::loop(){
                         opposite_yaw = calc_target_yaw(3.14);
                         first = false;
                         navigation = false;
-                    }else if (rotate(target_yaw, opposite_yaw)){
+                    }
+                    if (rotate(target_yaw, opposite_yaw)){
                         clear_costmap();
                         navigation = true;
                         recovery = false;
                         first = true;
                         recovery_count++;
-                        sleep(2);
+                        sleep(1);
                     }
                 }else if (recovery_count >= 1){
                     ROS_INFO("rotation mode 1");
@@ -155,7 +156,7 @@ void Navigation::loop(){
                         navigation = true;
                         recovery = false;
                         first = true;
-                        sleep(2);
+                        sleep(1);
                     }
                 }
             // navigation mode
@@ -370,6 +371,7 @@ bool Navigation::rotate(double target_yaw, double opposite_yaw){
     geometry_msgs::Twist vel;
     vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
     vel.linear.x = 0.0;
+    // ROS_WARN("target_yaw:%f, current_yaw:%f, opposite_yaw%f", target_yaw, yaw, opposite_yaw);
     if (target_yaw < yaw + yaw_tolerance && target_yaw > yaw - yaw_tolerance){
         vel.angular.z = 0.0;
         vel_pub.publish(vel);
@@ -378,8 +380,10 @@ bool Navigation::rotate(double target_yaw, double opposite_yaw){
     }else{
         if (target_yaw < opposite_yaw && target_yaw > yaw){
             vel.angular.z = 0.6;
+            // ROS_WARN("+");
         }else{
             vel.angular.z = -0.6;
+            // ROS_WARN("-");
         }
         vel_pub.publish(vel);
         ROS_INFO("Start rotate");
