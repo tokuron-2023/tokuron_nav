@@ -37,7 +37,8 @@ class Navigation{
         };
         std::vector<Spot> spot_array;
         std::vector<int> gpt_array;
-        int spot_num = 0;
+        int spot_num = 0,
+            recovery_count = 0;
         double position_x,
                position_y,
                old_pose_x,
@@ -64,7 +65,7 @@ class Navigation{
         void read_yaml();
         void send_goal(double*, double*, double*);
         double calc_distance(double*, double*, double*, double*);
-        double calc_opposite_yaw(double);
+        double calc_opposite_yaw();
         double calc_recovery_yaw(double*, double*, double*, double*);
         void check_moving(const ros::TimerEvent& e);
         void send_empty_goal();
@@ -97,34 +98,58 @@ void Navigation::loop(){
                     *gz = &spot_array[gpt_array[spot_num]].point.z,
                     *px = &position_x,
                     *py = &position_y;
-            ROS_WARN("navigation:%d, rotaion:%d, recovery:%d", navigation, rotation, recovery);
+            // ROS_WARN("navigation:%d, rotaion:%d, recovery:%d", navigation, rotation, recovery);
+
+            // rotation mode
             if (rotation){
                 ROS_INFO("rotation");
                 if (first){
-                    target_yaw = calc_opposite_yaw(3.14);
+                    target_yaw = calc_opposite_yaw();
                     first = false;
                 }
                 if (rotate(target_yaw)){
                     navigation = true;
                     rotation = false;
-                    first = true;
-                }
-            }else if (recovery && count >= 30){
-                ROS_INFO("recovery");
-                if (first){
-                    send_empty_goal();
-                    target_yaw = calc_recovery_yaw(gx, gy, px, py);
-                    first = false;
-                    navigation = false;
-                }
-                if (rotate(target_yaw)){
-                    navigation = true;
                     recovery = false;
                     first = true;
                 }
+            // recovery mode
+            }else if (recovery && count >= 10){
+                ROS_INFO("recovery");
+                if (recovery_count == 0){
+                    ROS_INFO("rotation mode 0");
+                    if (first){
+                        send_empty_goal();
+                        target_yaw = calc_recovery_yaw(gx, gy, px, py);
+                        first = false;
+                        navigation = false;
+                    }else if (rotate(target_yaw)){
+                        clear_costmap();
+                        navigation = true;
+                        recovery = false;
+                        first = true;
+                        recovery_count++;
+                        sleep(1);
+                    }
+                }else if (recovery_count == 1){
+                    ROS_INFO("rotation mode 1");
+                    if (first){
+                        send_empty_goal();
+                        target_yaw = calc_opposite_yaw();
+                        first = false;
+                    }
+                    if (rotate(target_yaw)){
+                        clear_costmap();
+                        navigation = true;
+                        recovery = false;
+                        first = true;
+                    }
+                }
+            // navigation mode
             }else if (navigation){
                 ROS_INFO("navigation");
                 send_goal(gx, gy, gz);
+                recovery = false;
                 if (calc_distance(gx, gy, px, py) < dist_err){
                     spot_num++;
                     start_nav = false;
@@ -249,15 +274,15 @@ double Navigation::calc_distance(double *gx, double *gy, double *px, double *py)
     return distance;
 }
 
-double Navigation::calc_opposite_yaw(double rad){
+double Navigation::calc_opposite_yaw(){
     double roll, pitch, yaw;
     tf::Quaternion quaternion;
     quaternionMsgToTF(orientation, quaternion);
     tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
     if (yaw > 0){
-        target_yaw = -(rad - abs(yaw));
+        target_yaw = -(3.14 - abs(yaw));
     }else{
-        target_yaw = rad - abs(yaw);
+        target_yaw = 3.14 - abs(yaw);
     }
     return target_yaw;
 }
@@ -274,6 +299,7 @@ void Navigation::check_moving(const ros::TimerEvent& e){
         recovery = true;
         ROS_WARN("Stopping");
     }else{
+        recovery_count = 0;
         ROS_WARN("Moving");
     }
     old_pose_x = position_x;
