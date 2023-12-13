@@ -9,7 +9,7 @@
   <arg name="move_forward_only" default="false"/>
   <!-- navigation -->
   <arg name="yaml_path" default="$(find tokuron_nav)/spot/real_spot.yaml"/>
-  <arg name="dist_err" default="0.05"/>
+  <arg name="dist_err" default="0.1"/>
   <arg name="yaw_tolerance" default="0.2"/>
   <!-- Set pose_tolerance1 < pose_tolerance2 -->
   <arg name="pose_tolerance1" default="0.01"/>
