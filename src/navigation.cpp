@@ -110,7 +110,6 @@ void Navigation::loop(){
                     *px = &path_x,
                     *py = &path_y;
             // ROS_WARN("navigation:%d, rotaion:%d, recovery:%d", navigation, rotation, recovery);
-
             // rotation mode
             if (rotation){
                 ROS_INFO("rotation");
@@ -141,7 +140,7 @@ void Navigation::loop(){
                         recovery = false;
                         first = true;
                         recovery_count++;
-                        sleep(1);
+                        sleep(2);
                     }
                 }else if (recovery_count >= 1){
                     ROS_INFO("rotation mode 1");
@@ -156,6 +155,7 @@ void Navigation::loop(){
                         navigation = true;
                         recovery = false;
                         first = true;
+                        sleep(2);
                     }
                 }
             // navigation mode
@@ -230,8 +230,14 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
 }
 
 void Navigation::path_callback(const nav_msgs::Path::ConstPtr& msg){
-    path_x = msg->poses[10].pose.position.x;
-    path_y = msg->poses[10].pose.position.y;
+    int size = msg->poses.size();
+    if (size >= 10){
+        path_x = msg->poses[10].pose.position.x;
+        path_y = msg->poses[10].pose.position.y;
+    }else{
+        path_x = 0;
+        path_y = 0;
+    }
 }
 
 void Navigation::read_yaml(){
