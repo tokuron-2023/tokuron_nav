@@ -23,7 +23,8 @@ class Navigation{
         ros::Subscriber pose_sub,
                         list_sub;
         ros::ServiceServer start_srv;
-        ros::ServiceClient clear_costmap_srv;
+        ros::ServiceClient clear_costmap_srv,
+                           reach_goal_srv;
         ros::Timer check_moving_timer;
         struct Point {
             double x;
@@ -46,7 +47,8 @@ class Navigation{
                target_yaw,
                dist_err,
                yaw_tolerance,
-               pose_tolerance,
+               pose_tolerance1,
+               pose_tolerance2,
                goal_pub_rate;
         geometry_msgs::Quaternion orientation;
         bool start_nav = false,
@@ -65,11 +67,12 @@ class Navigation{
         void read_yaml();
         void send_goal(double*, double*, double*);
         double calc_distance(double*, double*, double*, double*);
-        double calc_opposite_yaw();
-        double calc_recovery_yaw(double*, double*, double*, double*);
+        double calc_target_yaw(double);
+        double calc_goal_direction(double*, double*, double*, double*);
         void check_moving(const ros::TimerEvent& e);
         void send_empty_goal();
         void clear_costmap();
+        void reach_goal();
         bool rotate(double);
         double get_goal_pub_rate(){return goal_pub_rate;};
 };
@@ -79,7 +82,8 @@ Navigation::Navigation(){
     pnh.param<std::string>("yaml_path", yaml_path, ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
     pnh.param<double>("dist_err", dist_err, 0.05);
     pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.2);
-    pnh.param<double>("pose_tolerance", pose_tolerance, 0.01);
+    pnh.param<double>("pose_tolerance1", pose_tolerance1, 0.01);
+    pnh.param<double>("pose_tolerance2", pose_tolerance2, 0.04);
     pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
@@ -104,7 +108,7 @@ void Navigation::loop(){
             if (rotation){
                 ROS_INFO("rotation");
                 if (first){
-                    target_yaw = calc_opposite_yaw();
+                    target_yaw = calc_target_yaw(3.14);
                     first = false;
                 }
                 if (rotate(target_yaw)){
@@ -120,7 +124,7 @@ void Navigation::loop(){
                     ROS_INFO("rotation mode 0");
                     if (first){
                         send_empty_goal();
-                        target_yaw = calc_recovery_yaw(gx, gy, px, py);
+                        target_yaw = calc_goal_direction(gx, gy, px, py);
                         first = false;
                         navigation = false;
                     }else if (rotate(target_yaw)){
@@ -131,11 +135,11 @@ void Navigation::loop(){
                         recovery_count++;
                         sleep(1);
                     }
-                }else if (recovery_count == 1){
+                }else if (recovery_count >= 1){
                     ROS_INFO("rotation mode 1");
                     if (first){
                         send_empty_goal();
-                        target_yaw = calc_opposite_yaw();
+                        target_yaw = calc_target_yaw(3.14);
                         first = false;
                     }
                     if (rotate(target_yaw)){
@@ -157,6 +161,7 @@ void Navigation::loop(){
                     rotation = true;
                     send_empty_goal();
                     clear_costmap();
+                    reach_goal();
                     if (spot_num == gpt_array.size()){
                         spot_num = 0;
                         gpt_array.clear();
@@ -274,33 +279,35 @@ double Navigation::calc_distance(double *gx, double *gy, double *px, double *py)
     return distance;
 }
 
-double Navigation::calc_opposite_yaw(){
+double Navigation::calc_target_yaw(double rad){
     double roll, pitch, yaw;
     tf::Quaternion quaternion;
     quaternionMsgToTF(orientation, quaternion);
     tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
     if (yaw > 0){
-        target_yaw = -(3.14 - abs(yaw));
+        target_yaw = -(rad - abs(yaw));
     }else{
-        target_yaw = 3.14 - abs(yaw);
+        target_yaw = rad - abs(yaw);
     }
     return target_yaw;
 }
 
-double Navigation::calc_recovery_yaw(double *gx, double *gy, double *px, double *py){
+double Navigation::calc_goal_direction(double *gx, double *gy, double *px, double *py){
     double target_yaw;
     target_yaw = atan2(*gy -*py, *gx -*px);
     return target_yaw;
 }
 
 void Navigation::check_moving(const ros::TimerEvent& e){
-    // ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
-    if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
+    ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
+    if (abs(old_pose_x - position_x) < pose_tolerance1 && abs(old_pose_y - position_y) < pose_tolerance1){
         recovery = true;
         ROS_WARN("Stopping");
+    }else if (abs(old_pose_x - position_x) < pose_tolerance2 && abs(old_pose_y - position_y) < pose_tolerance2 && recovery_count > 0){
+        recovery_count++;
     }else{
         recovery_count = 0;
-        ROS_WARN("Moving");
+        ROS_INFO("Moving");
     }
     old_pose_x = position_x;
     old_pose_y = position_y;
@@ -317,9 +324,24 @@ void Navigation::send_empty_goal(){
 void Navigation::clear_costmap(){
     clear_costmap_srv = nh.serviceClient<std_srvs::Empty>("/move_base/clear_costmaps");
     std_srvs::Empty srv;
-    clear_costmap_srv.call(srv);
-    ROS_INFO("Service call -> /move_base/clear_costmaps");
+    if (clear_costmap_srv.call(srv)){
+        ROS_INFO("Succeeded to call service /move_base/clear_costmaps");
+    }else{
+        ROS_ERROR("Failed to call service /move_base/clear_costmaps");
+    }
 }
+
+void Navigation::reach_goal(){
+    reach_goal_srv = nh.serviceClient<std_srvs::SetBool>("/reach_goal");
+    std_srvs::SetBool srv;
+    srv.request.data = true;
+    if (reach_goal_srv.call(srv)){
+        ROS_INFO("Succeeded to call service /reach_goal");
+    }else{
+        ROS_ERROR("Failed to call service /reach_goal");
+    }
+}
+
 bool Navigation::rotate(double target_yaw){
     double roll, pitch, yaw;
     tf::Quaternion quaternion;

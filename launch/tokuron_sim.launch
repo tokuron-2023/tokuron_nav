@@ -16,7 +16,9 @@
   <arg name="yaml_path" default="$(find tokuron_nav)/spot/spot.yaml"/>
   <arg name="dist_err" default="0.05"/>
   <arg name="yaw_tolerance" default="0.2"/>
-  <arg name="pose_tolerance" default="0.01"/>
+  <!-- Set pose_tolerance1 < pose_tolerance2 -->
+  <arg name="pose_tolerance1" default="0.01"/>
+  <arg name="pose_tolerance2" default="0.04"/>
   <arg name="goal_pub_rate" default="10"/>
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
@@ -64,7 +66,8 @@
     <arg name="yaml_path" value="$(arg yaml_path)"/>
     <arg name="dist_err" value="$(arg dist_err)"/>
     <arg name="yaw_tolerance" value="$(arg yaw_tolerance)"/>
-    <arg name="pose_tolerance" value="$(arg pose_tolerance)"/>
+    <arg name="pose_tolerance1" value="$(arg pose_tolerance1)"/>
+    <arg name="pose_tolerance2" value="$(arg pose_tolerance2)"/>
     <arg name="goal_pub_rate" value="$(arg goal_pub_rate)"/>
   </include> -->
 

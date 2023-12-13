@@ -3,14 +3,17 @@
   <arg name="yaml_path" default="$(find tokuron_nav)/spot/spot.yaml"/>
   <arg name="dist_err" default="0.05"/>
   <arg name="yaw_tolerance" default="0.2"/>
-  <arg name="pose_tolerance" default="0.01"/>
+  <!-- Set pose_tolerance1 < pose_tolerance2 -->
+  <arg name="pose_tolerance1" default="0.01"/>
+  <arg name="pose_tolerance2" default="0.04"/>
   <arg name="goal_pub_rate" default="10"/>
 
   <node pkg="tokuron_nav" name="navigation" type="navigation" output="screen">
     <param name="yaml_path" type="string" value="$(arg yaml_path)"/>
     <param name="dist_err" type="double" value="$(arg dist_err)"/>
     <param name="yaw_tolerance" type="double" value="$(arg yaw_tolerance)"/>
-    <param name="pose_tolerance" type="double" value="$(arg pose_tolerance)"/>
+    <param name="pose_tolerance1" type="double" value="$(arg pose_tolerance1)"/>
+    <param name="pose_tolerance2" type="double" value="$(arg pose_tolerance2)"/>
     <param name="goal_pub_rate" type="double" value="$(arg goal_pub_rate)"/>
   </node>
 </launch>
