@@ -21,12 +21,10 @@ class Navigation{
                         vel_pub,
                         empty_goal_pub;
         ros::Subscriber pose_sub,
-                        list_sub,
-                        scan_sub;
+                        list_sub;
         ros::ServiceServer start_srv;
         ros::ServiceClient clear_costmap_srv;
-        ros::Timer pose_timer,
-                   check_moving_timer;
+        ros::Timer check_moving_timer;
         struct Point {
             double x;
             double y;
@@ -39,28 +37,22 @@ class Navigation{
         };
         std::vector<Spot> spot_array;
         std::vector<int> gpt_array;
-        std::vector<float> scan_array;
-        std::vector<float> pose_array_x,
-                           pose_array_y;
-        int spot_num = 0,
-            scan_array_size;
-        double position_x, 
-               position_y, 
-               dist_err, 
-               target_yaw, 
-               yaw_tolerance,
-               front_distance_threshold,
-               pose_tolerance,
-               average_x,
-               average_y,
+        int spot_num = 0;
+        double position_x,
+               position_y,
                old_pose_x,
                old_pose_y,
+               target_yaw,
+               dist_err,
+               yaw_tolerance,
+               pose_tolerance,
                goal_pub_rate;
         geometry_msgs::Quaternion orientation;
         bool start_nav = false,
-             reach_goal = false,
-             moving = false,
-             get_target_yaw = true;
+             navigation = true,
+             rotation = false,
+             recovery = false,
+             first = true;
         std::string yaml_path;
 
     public:
@@ -69,17 +61,15 @@ class Navigation{
         bool mode_callback(std_srvs::SetBool::Request &req, std_srvs::SetBool::Response &res);
         void pose_callback(const geometry_msgs::PoseWithCovarianceStamped& msg);
         void list_callback(const std_msgs::UInt8MultiArray& msg);
-        void scan_callback(const sensor_msgs::LaserScan& msg);
         void read_yaml();
         void send_goal(double*, double*, double*);
-        double check_distance(double*, double*, double*, double*);
-        double calc_front_distance();
-        void average_pose(const ros::TimerEvent& e);
-        void old_pose(const ros::TimerEvent& e);
+        double calc_distance(double*, double*, double*, double*);
+        double calc_opposite_yaw(double);
+        double calc_recovery_yaw(double*, double*, double*, double*);
         void check_moving(const ros::TimerEvent& e);
         void send_empty_goal();
         void clear_costmap();
-        void rotate(double);
+        bool rotate(double);
         double get_goal_pub_rate(){return goal_pub_rate;};
 };
 
@@ -87,18 +77,15 @@ Navigation::Navigation(){
     ros::NodeHandle pnh("~");
     pnh.param<std::string>("yaml_path", yaml_path, ros::package::getPath("tokuron_nav") += "/spot/real_spot.yaml");
     pnh.param<double>("dist_err", dist_err, 0.05);
-    pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.6);
-    pnh.param<double>("front_distance_threshold", front_distance_threshold, 0.16);
-    pnh.param<double>("pose_tolerance", pose_tolerance, 0.005);
+    pnh.param<double>("yaw_tolerance", yaw_tolerance, 0.2);
+    pnh.param<double>("pose_tolerance", pose_tolerance, 0.01);
     pnh.param<double>("goal_pub_rate", goal_pub_rate, 10);
     ROS_INFO("Start navigation node");
     read_yaml();
     start_srv = nh.advertiseService("/start_nav", &Navigation::mode_callback, this);
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
-    scan_sub = nh.subscribe("/scan", 1, &Navigation::scan_callback, this);
-    pose_timer = nh.createTimer(ros::Duration(2), &Navigation::old_pose, this);
-    check_moving_timer = nh.createTimer(ros::Duration(4), &Navigation::check_moving, this);
+    check_moving_timer = nh.createTimer(ros::Duration(3.0), &Navigation::check_moving, this);
 }
 
 void Navigation::loop(){
@@ -108,22 +95,41 @@ void Navigation::loop(){
             double  *gx = &spot_array[gpt_array[spot_num]].point.x,
                     *gy = &spot_array[gpt_array[spot_num]].point.y,
                     *gz = &spot_array[gpt_array[spot_num]].point.z,
-                    *ppx = &position_x,
-                    *ppy = &position_y,
-                    gdist;
-            if (reach_goal){
-                rotate(3.14);
-            }else if (!reach_goal && !moving && count >= 20){
-                send_empty_goal();
-                rotate(1.57);
-            }else if (!reach_goal && moving || count == 0){
+                    *px = &position_x,
+                    *py = &position_y;
+            ROS_WARN("navigation:%d, rotaion:%d, recovery:%d", navigation, rotation, recovery);
+            if (rotation){
+                ROS_INFO("rotation");
+                if (first){
+                    target_yaw = calc_opposite_yaw(3.14);
+                    first = false;
+                }
+                if (rotate(target_yaw)){
+                    navigation = true;
+                    rotation = false;
+                    first = true;
+                }
+            }else if (recovery && count >= 30){
+                ROS_INFO("recovery");
+                if (first){
+                    send_empty_goal();
+                    target_yaw = calc_recovery_yaw(gx, gy, px, py);
+                    first = false;
+                    navigation = false;
+                }
+                if (rotate(target_yaw)){
+                    navigation = true;
+                    recovery = false;
+                    first = true;
+                }
+            }else if (navigation){
+                ROS_INFO("navigation");
                 send_goal(gx, gy, gz);
-                gdist = check_distance(gx, gy, ppx, ppy);
-                if (gdist < dist_err){
+                if (calc_distance(gx, gy, px, py) < dist_err){
                     spot_num++;
                     start_nav = false;
-                    reach_goal = true;
-                    get_target_yaw = true;
+                    navigation = false;
+                    rotation = true;
                     send_empty_goal();
                     clear_costmap();
                     if (spot_num == gpt_array.size()){
@@ -184,11 +190,6 @@ void Navigation::list_callback(const std_msgs::UInt8MultiArray& msg){
     }
 }
 
-void Navigation::scan_callback(const sensor_msgs::LaserScan& msg){
-    scan_array =  msg.ranges;
-    scan_array_size = scan_array.size();
-}
-
 void Navigation::read_yaml(){
     YAML::Node config = YAML::LoadFile(yaml_path);
     ROS_INFO("%s", yaml_path.c_str());
@@ -241,72 +242,45 @@ void Navigation::send_goal(double *x, double *y, double *e){
     ROS_INFO("Send goal");
 }
 
-double Navigation::check_distance(double *gx, double *gy, double *position_x, double *position_y){
+double Navigation::calc_distance(double *gx, double *gy, double *px, double *py){
     double distance;
-    distance = sqrt(std::pow(*position_x - *gx, 2) + std::pow(*position_y - *gy, 2));
+    distance = sqrt(std::pow(*px - *gx, 2) + std::pow(*py - *gy, 2));
     ROS_INFO("Goal distance:%f", distance);
     return distance;
 }
 
-double Navigation::calc_front_distance(){
-    int count;
-    float sum = 0;
-    for (int i = scan_array_size - 5; i <= scan_array_size - 1; i++){
-        sum += scan_array[i];
-        count++;
+double Navigation::calc_opposite_yaw(double rad){
+    double roll, pitch, yaw;
+    tf::Quaternion quaternion;
+    quaternionMsgToTF(orientation, quaternion);
+    tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
+    if (yaw > 0){
+        target_yaw = -(rad - abs(yaw));
+    }else{
+        target_yaw = rad - abs(yaw);
     }
-    for (int i = 0; i <= 5; i++){
-        sum += scan_array[i];
-        count++;
-    }
-    ROS_INFO("Front distance:%f", sum / count);
-    return sum / count;
-
-    // int front = scan_array.size() / 2;
-    // int count;
-    // float sum = 0;
-    // for (int i = front - 5; i <= front + 5; i++){
-    //     sum += scan_array[i];
-    //     count++;
-    // }
-    // ROS_INFO("Front distance:%f", sum / count);
-    // return sum / count;
+    return target_yaw;
 }
 
-void Navigation::average_pose(const ros::TimerEvent& e){
-    int i;
-    double sum_x = 0, sum_y = 0;
-    pose_array_x.push_back(abs(position_x));
-    pose_array_y.push_back(abs(position_y));
-    if (pose_array_x.size() >= 11){
-        pose_array_x.erase(pose_array_x.begin());
-        pose_array_y.erase(pose_array_y.begin());
-    }
-    for (i = 0; i < pose_array_x.size(); i++){
-        sum_x =+ pose_array_x[i];
-        sum_y =+ pose_array_y[i];
-    }
-    average_x = sum_x / i;
-    average_y = sum_y / i;
-}
-
-void Navigation::old_pose(const ros::TimerEvent& e){
-    old_pose_x = position_x;
-    old_pose_y = position_y;
+double Navigation::calc_recovery_yaw(double *gx, double *gy, double *px, double *py){
+    double target_yaw;
+    target_yaw = atan2(*gy -*py, *gx -*px);
+    return target_yaw;
 }
 
 void Navigation::check_moving(const ros::TimerEvent& e){
     // ROS_WARN("x:%f, y:%f", abs(old_pose_x - position_x), abs(old_pose_y - position_y));
     if (abs(old_pose_x - position_x) < pose_tolerance && abs(old_pose_y - position_y) < pose_tolerance){
-        moving = false;
+        recovery = true;
+        ROS_WARN("Stopping");
     }else{
-        moving = true;
-        // get_target_yaw = true;
+        ROS_WARN("Moving");
     }
+    old_pose_x = position_x;
+    old_pose_y = position_y;
 }
 
 void Navigation::send_empty_goal(){
-    sleep(1);
     empty_goal_pub = nh.advertise<actionlib_msgs::GoalID>("/move_base/cancel", 1);
     actionlib_msgs::GoalID empty;
     empty.id = "";
@@ -320,42 +294,28 @@ void Navigation::clear_costmap(){
     clear_costmap_srv.call(srv);
     ROS_INFO("Service call -> /move_base/clear_costmaps");
 }
-
-void Navigation::rotate(double rad){
+bool Navigation::rotate(double target_yaw){
     double roll, pitch, yaw;
     tf::Quaternion quaternion;
     quaternionMsgToTF(orientation, quaternion);
     tf::Matrix3x3(quaternion).getRPY(roll, pitch, yaw);
     geometry_msgs::Twist vel;
     vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
-    if (get_target_yaw){
-        if (yaw > 0){
-            target_yaw = -(rad - abs(yaw));
-        }else{
-            target_yaw = rad - abs(yaw);
-        }
-        get_target_yaw = false;
-    }
-    if (target_yaw > 0){
-        vel.angular.z = -0.6;
-    }else{
-        vel.angular.z = 0.6;
-    }
-    // vel.angular.z = 0.6;
     vel.linear.x = 0.0;
-    vel_pub.publish(vel);
-    if (rad == 3.14){
-        ROS_INFO("Rotating %.0f degrees", 180 * rad / 3.14);
-    }else{
-        ROS_INFO("Rotating");
-    }
     if (target_yaw < yaw + yaw_tolerance && target_yaw > yaw - yaw_tolerance){
         vel.angular.z = 0.0;
         vel_pub.publish(vel);
-        get_target_yaw = true;
-        reach_goal = false;
-        moving = true;
         ROS_INFO("Finish rotate");
+        return true;
+    }else{
+        if (target_yaw > 0){
+            vel.angular.z = -0.6;
+        }else{
+            vel.angular.z = 0.6;
+        }
+        vel_pub.publish(vel);
+        ROS_INFO("Start rotate");
+        return false;
     }
 }
 
