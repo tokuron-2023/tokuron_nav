@@ -94,13 +94,13 @@ Navigation::Navigation(){
     list_sub = nh.subscribe("/list", 1, &Navigation::list_callback, this);
     pose_sub = nh.subscribe("/mcl_pose", 1, &Navigation::pose_callback, this);
     path_sub = nh.subscribe("/move_base/NavfnROS/plan", 10, &Navigation::path_callback, this);
-    check_moving_timer = nh.createTimer(ros::Duration(3.0), &Navigation::check_moving, this);
+    check_moving_timer = nh.createTimer(ros::Duration(2.0), &Navigation::check_moving, this);
 }
 
 void Navigation::loop(){
     if (start_nav){
         if (!gpt_array.empty()){
-            static int count = 0;
+            static int i = 0, count = 0;
             static double target_yaw, opposite_yaw;
             double  *gx = &spot_array[gpt_array[spot_num]].point.x,
                     *gy = &spot_array[gpt_array[spot_num]].point.y,
@@ -124,7 +124,7 @@ void Navigation::loop(){
                     first = true;
                 }
             // recovery mode
-            }else if (recovery && count >= 10){
+            }else if (recovery && i >= 5){
                 ROS_INFO("recovery");
                 if (recovery_count == 0){
                     ROS_INFO("rotation mode 0");
@@ -156,7 +156,6 @@ void Navigation::loop(){
                         navigation = true;
                         recovery = false;
                         first = true;
-                        sleep(1);
                     }
                 }
             // navigation mode
@@ -165,20 +164,24 @@ void Navigation::loop(){
                 send_goal(gx, gy, gz);
                 recovery = false;
                 if (calc_distance(gx, gy, pos_x, pos_y) < dist_err){
-                    spot_num++;
-                    start_nav = false;
-                    navigation = false;
-                    rotation = true;
-                    send_empty_goal();
-                    clear_costmap();
-                    reach_goal();
-                    if (spot_num == gpt_array.size()){
-                        spot_num = 0;
-                        gpt_array.clear();
+                    count++;
+                    if (count >= 5){
+                        spot_num++;
+                        start_nav = false;
+                        navigation = false;
+                        rotation = true;
+                        count = 0;
+                        send_empty_goal();
+                        clear_costmap();
+                        reach_goal();
+                        if (spot_num == gpt_array.size()){
+                            spot_num = 0;
+                            gpt_array.clear();
+                        }
                     }
                 }
             }
-            count++;
+            i++;
         }else{
             ROS_ERROR("Please publish std_msgs/UInt8MultiArray message");
             start_nav = false;
